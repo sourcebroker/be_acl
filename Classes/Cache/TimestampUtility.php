@@ -1,6 +1,7 @@
 <?php
 namespace JBartels\BeAcl\Cache;
 
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 /***************************************************************
  *  Copyright notice
  *
@@ -71,7 +72,7 @@ class TimestampUtility implements SingletonInterface
     /**
      * @param \TYPO3\CMS\Core\Cache\Frontend\FrontendInterface $timestampCache
      */
-    public function setTimestampCache($timestampCache)
+    public function setTimestampCache($timestampCache): void
     {
         $this->timestampCache = $timestampCache;
     }
@@ -82,7 +83,7 @@ class TimestampUtility implements SingletonInterface
      * @param int $offset
      * @return void
      */
-    public function updateTimestamp($offset = 0)
+    public function updateTimestamp($offset = 0): void
     {
         $this->initializeCache();
         $timestamp = time() + $offset;
@@ -126,7 +127,7 @@ class TimestampUtility implements SingletonInterface
         }
 
         /** @var \TYPO3\CMS\Core\Cache\CacheManager $cacheManager */
-        $cacheManager = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('TYPO3\\CMS\Core\\Cache\\CacheManager');
+        $cacheManager = GeneralUtility::makeInstance('TYPO3\\CMS\Core\\Cache\\CacheManager');
         $this->setTimestampCache($cacheManager->getCache('tx_be_acl_timestamp'));
     }
 }

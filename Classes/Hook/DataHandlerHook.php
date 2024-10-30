@@ -1,6 +1,11 @@
 <?php
 namespace JBartels\BeAcl\Hook;
 
+use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+
 /***************************************************************
  *  Copyright notice
  *
@@ -44,7 +49,7 @@ class DataHandlerHook
      * @param \TYPO3\CMS\Core\DataHandling\DataHandler $tceMain TCEmain parent object.
      * @return void
      */
-    public function processDatamap_afterDatabaseOperations($status, $table, $recordId, $updatedFields, $tceMain)
+    public function processDatamap_afterDatabaseOperations($status, $table, $recordId, $updatedFields, $tceMain): void
     {
 
         // When a new page is created we update the permission timestamp
@@ -77,8 +82,8 @@ class DataHandlerHook
         $table,
         $recordId,
         $commandValue,
-        \TYPO3\CMS\Core\DataHandling\DataHandler $tceMain
-    ) {
+        DataHandler $tceMain
+    ): void {
 
         // This is required to take care of deleted ACLs.
         if ($table == 'tx_beacl_acl') {
@@ -92,8 +97,53 @@ class DataHandlerHook
     protected function flushPermissionCache()
     {
         /** @var \JBartels\BeAcl\Cache\PermissionCache $permissionCache */
-        $permissionCache = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('JBartels\\BeAcl\\Cache\\PermissionCache');
+        $permissionCache = GeneralUtility::makeInstance('JBartels\\BeAcl\\Cache\\PermissionCache');
         $permissionCache->flushCache();
     }
 
+    /**
+     * Handle page translations in the same table
+     *
+     * @param string $table
+     * @param int $id
+     * @param array $data
+     * @param mixed $res
+     * @param DataHandler $dataHandler
+     * @return mixed
+     */
+    public function checkRecordUpdateAccess($table, $id, $data, &$res, DataHandler $dataHandler)
+    {
+        if ($table === 'pages') {
+
+            /**
+             * Case #1 - We are editing the page translation directly
+             */
+            if (($dataHandler->defaultValues['pages']['sys_language_uid'] ?? 0) > 0) {
+
+                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('pages');
+                $queryBuilder->getRestrictions()
+                    ->removeAll()
+                    ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+                $languageParent = $queryBuilder->select('l10n_parent')
+                    ->from('pages')
+                    ->where($queryBuilder->expr()->eq('uid', (int)$id))
+                    ->executeQuery()
+                    ->fetchOne();
+
+                if ($languageParent) {
+                    return $dataHandler->checkRecordUpdateAccess($table, $languageParent);
+                }
+            }
+
+            /**
+             * Case #2 - We are editing the page in default language, so translation gets updated too
+             */
+            if($dataHandler->checkValue_currentRecord['uid'] ?? false) {
+                $currentRecordUid = (integer)$dataHandler->checkValue_currentRecord['uid'];
+                if ($currentRecordUid != 0 && $currentRecordUid != $id) {
+                    return true;
+                }
+            }
+        }
+    }
 }

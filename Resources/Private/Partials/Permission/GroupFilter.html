@@ -1,7 +1,7 @@
 {namespace bu = TYPO3\CMS\Beuser\ViewHelpers}
 
 <div class="form-group">
-<label for="{filter.id}">{filter.title}</label>
+<label for="{filter.id}"class="form-label">{filter.title}</label>
 
 <select class="form-control" id="{filter.id}" size="5" name="tx_beacl_objsel[1][]" multiple="multiple">
 	<f:for each="{filter.options}" as="option" key="oid">

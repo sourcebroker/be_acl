@@ -1,4 +1,5 @@
-<select class="form-control" name="tx_beuser_system_beusertxpermission[data][tx_beacl_acl][{acl.uid}][object_id]" value="{acl.object_id}" data-acluid="{acl.uid}">
+<select class="form-control" name="data[tx_beacl_acl][{acl.uid}][object_id]" value="{acl.object_id}" data-acluid="{acl.uid}">
+
 	<f:for each="{options}" as="label" key="uid">
 		<f:if condition="{uid} > 0">
 			<option value="{uid}" {f:if(condition: '{uid}=={acl.object_id}', then: 'selected="selected"')} >{label}</option>

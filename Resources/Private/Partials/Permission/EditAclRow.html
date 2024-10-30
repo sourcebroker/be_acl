@@ -37,17 +37,39 @@
 			</div>
 		</div>
 	</td>
-	<td><input type="checkbox" name="check[perms_acl_{pageAcl.uid}][1]" onclick="TYPO3.Permissions.checkChange('check[perms_acl_{pageAcl.uid}]', 'tx_beuser_system_beusertxpermission[data][tx_beacl_acl][{pageAcl.uid}][permissions]')" /></td>
-	<td><input type="checkbox" name="check[perms_acl_{pageAcl.uid}][5]" onclick="TYPO3.Permissions.checkChange('check[perms_acl_{pageAcl.uid}]', 'tx_beuser_system_beusertxpermission[data][tx_beacl_acl][{pageAcl.uid}][permissions]')" /></td>
-	<td><input type="checkbox" name="check[perms_acl_{pageAcl.uid}][2]" onclick="TYPO3.Permissions.checkChange('check[perms_acl_{pageAcl.uid}]', 'tx_beuser_system_beusertxpermission[data][tx_beacl_acl][{pageAcl.uid}][permissions]')" /></td>
-	<td><input type="checkbox" name="check[perms_acl_{pageAcl.uid}][3]" onclick="TYPO3.Permissions.checkChange('check[perms_acl_{pageAcl.uid}]', 'tx_beuser_system_beusertxpermission[data][tx_beacl_acl][{pageAcl.uid}][permissions]')" /></td>
-	<td><input type="checkbox" name="check[perms_acl_{pageAcl.uid}][4]" onclick="TYPO3.Permissions.checkChange('check[perms_acl_{pageAcl.uid}]', 'tx_beuser_system_beusertxpermission[data][tx_beacl_acl][{pageAcl.uid}][permissions]')" />
-	<input type="hidden" name="tx_beuser_system_beusertxpermission[data][tx_beacl_acl][{pageAcl.uid}][permissions]" value="{pageAcl.permissions}" />
-	<input type="hidden" name="tx_beuser_system_beusertxpermission[data][tx_beacl_acl][{pageAcl.uid}][pid]" value="{pageAcl.pid}" />
+
+	<td>
+		<div class="form-check form-check-type-toggle">
+			<input class="form-check-input" type="checkbox" name="check[perms_acl_{pageAcl.uid}][1]" value="1"  data-check-change-permissions="check[perms_acl_{pageAcl.uid}],data[tx_beacl_acl][{pageAcl.uid}][permissions]" />
+		</div>
 	</td>
 	<td>
-		<input type="hidden" name="tx_beuser_system_beusertxpermission[data][tx_beacl_acl][{pageAcl.uid}][recursive]" value="0" />
-		<input type="checkbox" name="tx_beuser_system_beusertxpermission[data][tx_beacl_acl][{pageAcl.uid}][recursive]" value="1" {f:if(condition:'{pageAcl.recursive}==1', then: 'checked="checked"')} />
+		<div class="form-check form-check-type-toggle">
+			<input class="form-check-input" type="checkbox" value="16" name="check[perms_acl_{pageAcl.uid}][5]" data-check-change-permissions="check[perms_acl_{pageAcl.uid}],data[tx_beacl_acl][{pageAcl.uid}][permissions]" />
+		</div>
+	</td>
+	<td>
+		<div class="form-check form-check-type-toggle">
+			<input class="form-check-input" type="checkbox" value="2" name="check[perms_acl_{pageAcl.uid}][4]" data-check-change-permissions="check[perms_acl_{pageAcl.uid}],data[tx_beacl_acl][{pageAcl.uid}][permissions]" />
+		</div>
+	</td>
+	<td>
+		<div class="form-check form-check-type-toggle">
+			<input class="form-check-input" type="checkbox" value="4" name="check[perms_acl_{pageAcl.uid}][3]" data-check-change-permissions="check[perms_acl_{pageAcl.uid}],data[tx_beacl_acl][{pageAcl.uid}][permissions]" />
+		</div>
+	</td>
+	<td>
+		<div class="form-check form-check-type-toggle">
+			<input class="form-check-input" type="checkbox" value="8" name="check[perms_acl_{pageAcl.uid}][4]" data-check-change-permissions="check[perms_acl_{pageAcl.uid}],data[tx_beacl_acl][{pageAcl.uid}][permissions]" />
+		</div>
+	</td>
+	<td>
+		<input type="hidden" name="data[tx_beacl_acl][{pageAcl.uid}][permissions]" value="{pageAcl.permissions}" data-checkbox-group="check[perms_acl_{pageAcl.uid}]"/>
+		<input type="hidden" name="data[tx_beacl_acl][{pageAcl.uid}][pid]" value="{pageAcl.pid}" />
+		<input type="hidden" name="data[tx_beacl_acl][{pageAcl.uid}][recursive]" value="0" />
+		<div class="form-check form-check-type-toggle">
+			<input class="form-check-input" type="checkbox" name="data[tx_beacl_acl][{pageAcl.uid}][recursive]" value="1" {f:if(condition:'{pageAcl.recursive}==1', then: 'checked="checked"')} />
+		</div>
 	</td>
 	<td><a href="#" class="tx_beacl-edit-delete" data-acluid="{pageAcl.uid}" data-toggle="tooltip" data-placement="top" title="{f:translate(key: 'LLL:EXT:be_acl/Resources/Private/Languages/locallang_perm.xlf:delAcl')}"><core:icon identifier="actions-delete" /></a></td>
 </tr>

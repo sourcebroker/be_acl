@@ -14,16 +14,25 @@ namespace JBartels\BeAcl\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Fluid\Core\Rendering\RenderingContextInterface;
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
-use TYPO3\CMS\Fluid\Core\ViewHelper\Facets\CompilableInterface;
+use TYPO3\CMS\Beuser\Exception;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
+use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
+use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
  * Get a value from an array by given key.
  */
-class ArrayElementViewHelper extends \TYPO3\CMS\Beuser\ViewHelpers\ArrayElementViewHelper implements CompilableInterface
+class ArrayElementViewHelper extends AbstractViewHelper
 {
+    use CompileWithRenderStatic;
+
+    public function initializeArguments(): void
+    {
+        $this->registerArgument('array', 'array', 'Array to search in', true);
+        $this->registerArgument('key', 'string', 'Key to return its value', true);
+        $this->registerArgument('subKey', 'string', 'If result of key access is an array, subkey can be used to fetch an element from this again', false, '');
+    }
 
     /**
      * Return array element by key.
@@ -31,14 +40,14 @@ class ArrayElementViewHelper extends \TYPO3\CMS\Beuser\ViewHelpers\ArrayElementV
      * @param array $arguments
      * @param \Closure $renderChildrenClosure
      * @param RenderingContextInterface $renderingContext
-     * @throws \TYPO3\CMS\Beuser\Exception
+     * @throws Exception
      * @return string
      */
     public static function renderStatic(
         array $arguments,
         \Closure $renderChildrenClosure,
         RenderingContextInterface $renderingContext
-    ) {
+    ): string {
         $array = $arguments['array'];
         $key = $arguments['key'];
         $subKey = $arguments['subKey'];
@@ -52,12 +61,12 @@ class ArrayElementViewHelper extends \TYPO3\CMS\Beuser\ViewHelpers\ArrayElementV
         }
 
         if (!is_scalar($result) && !is_null($result)) {
-            throw new \TYPO3\CMS\Beuser\Exception(
+            throw new Exception(
                 'Only scalar or null return values (string, int, float or double, null) are supported.',
                 1382284105
             );
         }
-        return $result;
+        return (string)$result;
     }
 
     protected static function getValue($array, $key, $del = '.', $default = null)

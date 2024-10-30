@@ -88,7 +88,7 @@ class PermissionCacheData
      * @param string $requestedPermissions
      * @param string $permissionsClause
      */
-    public function setPermissionClause($requestedPermissions, $permissionsClause)
+    public function setPermissionClause($requestedPermissions, $permissionsClause): void
     {
         $this->permissionClauseCache[$requestedPermissions] = $permissionsClause;
     }

@@ -1,19 +1,41 @@
 {
-	"name": "jbartels/be-acl",
-	"description": "Backend Access Control Lists",
-	"type": "typo3-cms-extension",
-	"version": "1.9.3",
-	"license": "GPL-2.0-or-later",
-	"autoload": {
-		"psr-4": {
-			"JBartels\\BeAcl\\": "Classes/"
-		}
-	},
-	"require": {
-		"typo3/cms-core": ">=8.7.0,<=9.5.99"
-	},
-	"replace": {
-		"be_acl": "self.version",
-		"typo3-ter/be-acl": "self.version"
-	}
+    "name": "sourcebroker/be-acl",
+    "description": "Backend Access Control Lists",
+    "type": "typo3-cms-extension",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Sebastian Kurfuerst",
+            "email": "sebastian@garbage-group.de",
+            "role": "Developer"
+        },
+        {
+            "name": "Jan Bartels",
+            "email": "j.bartels@arcor.de",
+            "role": "Developer"
+        },
+        {
+            "name": "Moritz Ngo",
+            "email": "moritz.ngo@p2media.de",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "typo3/cms-core": "^12.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "JBartels\\BeAcl\\": "Classes/",
+            "P2Media\\BeAcl\\": "Classes/"
+        }
+    },
+    "extra": {
+        "typo3/cms": {
+            "extension-key": "be_acl"
+        }
+    },
+    "replace": {
+        "jbartels/be-acl": "self.version",
+        "typo3-ter/be-acl": "self.version"
+    }
 }

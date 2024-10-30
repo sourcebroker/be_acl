@@ -25,6 +25,8 @@ namespace JBartels\BeAcl\Utility;
  ***************************************************************/
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Class for building the item array for the Backend forms.
@@ -40,7 +42,7 @@ class ObjectSelection
      * @param object $fobj
      * @return void
      */
-    function select($PA, $fobj)
+    public function select($PA, $fobj): void
     {
 
         if (!array_key_exists('row', $PA)) {
@@ -69,7 +71,7 @@ class ObjectSelection
             case '0':
                 $items = BackendUtility::getUserNames();
                 if (!$GLOBALS['BE_USER']->isAdmin()) {
-                    $items = BackendUtility::blindUserNames($items, $GLOBALS['BE_USER']->userGroupsUID, 1);
+                    $items = self::blindUserNames($items, $GLOBALS['BE_USER']->userGroupsUID, 1);
                 }
 
                 foreach ($items as $row) {
@@ -84,7 +86,7 @@ class ObjectSelection
             case '1':
                 $items = BackendUtility::getGroupNames();
                 if (!$GLOBALS['BE_USER']->isAdmin()) {
-                    $items = BackendUtility::blindGroupNames($items, $GLOBALS['BE_USER']->userGroupsUID, 1);
+                    $items = self::blindGroupNames($items, $GLOBALS['BE_USER']->userGroupsUID, 1);
                 }
 
                 foreach ($items as $row) {
@@ -97,5 +99,55 @@ class ObjectSelection
 
             default:
         }
+    }
+
+    protected static function blindUserNames($usernames, $groupArray, $excludeBlindedFlag = false)
+    {
+        if (is_array($usernames) && is_array($groupArray)) {
+            foreach ($usernames as $uid => $row) {
+                $userN = $uid;
+                $set = 0;
+                if ($row['uid'] != static::getBackendUserAuthentication()->user['uid']) {
+                    foreach ($groupArray as $v) {
+                        if ($v && GeneralUtility::inList($row['usergroup_cached_list'], $v)) {
+                            $userN = $row['username'];
+                            $set = 1;
+                        }
+                    }
+                } else {
+                    $userN = $row['username'];
+                    $set = 1;
+                }
+                $usernames[$uid]['username'] = $userN;
+                if ($excludeBlindedFlag && !$set) {
+                    unset($usernames[$uid]);
+                }
+            }
+        }
+        return $usernames;
+    }
+
+    protected static function blindGroupNames($groups, $groupArray, $excludeBlindedFlag = false)
+    {
+        if (is_array($groups) && is_array($groupArray)) {
+            foreach ($groups as $uid => $row) {
+                $groupN = $uid;
+                $set = 0;
+                if (in_array($uid, $groupArray, false)) {
+                    $groupN = $row['title'];
+                    $set = 1;
+                }
+                $groups[$uid]['title'] = $groupN;
+                if ($excludeBlindedFlag && !$set) {
+                    unset($groups[$uid]);
+                }
+            }
+        }
+        return $groups;
+    }
+
+    protected static function getBackendUserAuthentication(): ?BackendUserAuthentication
+    {
+        return $GLOBALS['BE_USER'] ?? null;
     }
 }

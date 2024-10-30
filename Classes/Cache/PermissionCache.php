@@ -1,6 +1,8 @@
 <?php
 namespace JBartels\BeAcl\Cache;
 
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use JBartels\BeAcl\Exception\RuntimeException;
 /***************************************************************
  *  Copyright notice
  *
@@ -76,7 +78,7 @@ class PermissionCache implements SingletonInterface
     /**
      * Disables the first level cache. Used for testing.
      */
-    public function disableFirstLevelCache()
+    public function disableFirstLevelCache(): void
     {
         $this->enableFirstLevelCache = false;
     }
@@ -87,7 +89,7 @@ class PermissionCache implements SingletonInterface
      *
      * @return void
      */
-    public function flushCache()
+    public function flushCache(): void
     {
         $this->permissionCacheFirstLevel = array();
         $this->timestampUtility->updateTimestamp();
@@ -128,7 +130,7 @@ class PermissionCache implements SingletonInterface
      * @param \TYPO3\CMS\Core\Authentication\BackendUserAuthentication $backendUser The Backend user for which the
      *     cache is managed
      */
-    public function setBackendUser($backendUser)
+    public function setBackendUser($backendUser): void
     {
         $this->backendUser = $backendUser;
     }
@@ -136,7 +138,7 @@ class PermissionCache implements SingletonInterface
     /**
      * @param \TYPO3\CMS\Core\Cache\Frontend\FrontendInterface $permissionCache
      */
-    public function setPermissionCache($permissionCache)
+    public function setPermissionCache($permissionCache): void
     {
         $this->permissionCacheSecondLevel = $permissionCache;
     }
@@ -149,7 +151,7 @@ class PermissionCache implements SingletonInterface
      * @param string $permissionsClause
      * @return void
      */
-    public function setPermissionsClause($requestedPermissions, $permissionsClause)
+    public function setPermissionsClause($requestedPermissions, $permissionsClause): void
     {
 
         if (!isset($this->backendUser)) {
@@ -164,7 +166,7 @@ class PermissionCache implements SingletonInterface
         $cacheData = $this->getCacheDataForCurrentUser();
 
         if (!$this->isValidCacheData($cacheData)) {
-            $cacheData = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('JBartels\\BeAcl\\Cache\\PermissionCacheData');
+            $cacheData = GeneralUtility::makeInstance('JBartels\\BeAcl\\Cache\\PermissionCacheData');
         }
 
         $cacheData->setPermissionClause($requestedPermissions, $permissionsClause);
@@ -176,7 +178,7 @@ class PermissionCache implements SingletonInterface
     /**
      * @param TimestampUtility $timestampUtility
      */
-    public function setTimestampUtility($timestampUtility)
+    public function setTimestampUtility($timestampUtility): void
     {
         $this->timestampUtility = $timestampUtility;
     }
@@ -209,7 +211,7 @@ class PermissionCache implements SingletonInterface
     {
 
         if (!isset($this->backendUser)) {
-            throw new \JBartels\BeAcl\Exception\RuntimeException('The Backend user needs to be initializes before the cache identifier can be generated.');
+            throw new RuntimeException('The Backend user needs to be initializes before the cache identifier can be generated.');
         }
 
         $identifier = $this->backendUser->user['uid'] . ';' . $this->backendUser->user['usergroup_cached_list'] . ';' . $this->backendUser->user['workspace_id'];
@@ -228,10 +230,10 @@ class PermissionCache implements SingletonInterface
     protected function initializeRequiredClasses()
     {
         /** @var \TYPO3\CMS\Core\Cache\CacheManager $cacheManager */
-        $cacheManager = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('TYPO3\\CMS\\Core\\Cache\\CacheManager');
+        $cacheManager = GeneralUtility::makeInstance('TYPO3\\CMS\\Core\\Cache\\CacheManager');
         $this->setPermissionCache($cacheManager->getCache('tx_be_acl_permissions'));
         /** @var TimestampUtility $timestampUtility */
-        $timestampUtility = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance('JBartels\\BeAcl\\Cache\\TimestampUtility');
+        $timestampUtility = GeneralUtility::makeInstance('JBartels\\BeAcl\\Cache\\TimestampUtility');
         $this->setTimestampUtility($timestampUtility);
     }
 

@@ -24,18 +24,18 @@ namespace JBartels\BeAcl\Controller;
  *  This copyright notice MUST APPEAR in all copies of the script!
  ***************************************************************/
 
+use Doctrine\DBAL\Exception;
+use JBartels\BeAcl\Exception\RuntimeException;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
-use TYPO3\CMS\Backend\Utility\IconUtility;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
+use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Core\Utility\ArrayUtility;
-use TYPO3\CMS\Backend\Tree\View\PageTreeView;
-use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
-use TYPO3\CMS\Extbase\Mvc\View\ViewInterface;
-use JBartels\BeAcl\View\BackendTemplateView;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 
 /**
  * Backend ACL - Replacement for "web->Access"
@@ -47,8 +47,10 @@ use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
  */
 class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionController
 {
-
-    protected $defaultViewObjectName = BackendTemplateView::class;
+    private const SESSION_PREFIX = 'tx_Beuser_';
+    private const ALLOWED_ACTIONS = ['index', 'edit', 'update'];
+    private const DEPTH_LEVELS = [1, 2, 3, 4, 10];
+    private const RECURSIVE_LEVELS = 10;
 
     protected $aclList = [];
 
@@ -56,52 +58,41 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
 
     protected $aclTypes = [0, 1];
 
+    /**
+     * ACL table
+     * @var string
+     */
+    protected $table = 'tx_beacl_acl';
+
     /*****************************
      *
      * Listing and Form rendering
      *
      *****************************/
 
-    /**
-     * Initialize action
-     *
-     * @return void
-     */
-    protected function initializeAction()
+    public function indexAction(ModuleTemplate $view, ServerRequestInterface $request): ResponseInterface
     {
-        parent::initializeAction();
-
-        if(empty($this->returnUrl)) {
-            $this->returnUrl = $this->uriBuilder->reset()->setArguments([
+        $view->assignMultiple([
+            'currentId' => $this->id,
+            'viewTree' => $this->getTree(),
+            'beUsers' => BackendUtility::getUserNames(),
+            'beGroups' => BackendUtility::getGroupNames(),
+            'depth' => $this->depth,
+            'depthOptions' => $this->getDepthOptions(),
+            'depthBaseUrl' => $this->uriBuilder->buildUriFromRoute('permissions_pages', [
+                'id' => $this->id,
+                'depth' => '${value}',
                 'action' => 'index',
-                'id' => $this->id
-                ])->buildBackendUri();
-        }
-    }
-
-    /**
-     * Initializes view
-     *
-     * @param ViewInterface $view The view to be initialized
-     * @return void
-     */
-    protected function initializeView(ViewInterface $view)
-    {
-        parent::initializeView($view);
-        // Add custom JS for Acl permissions
-        if ($view instanceof BackendTemplateView) {
-            $view->getModuleTemplate()->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/BeAcl/AclPermissions');
-        }
-    }
-
-    /**
-     * Index action
-     *
-     * @return void
-     */
-    public function indexAction()
-    {
-        parent::indexAction();
+            ]),
+            'editUrl' => $this->uriBuilder->buildUriFromRoute('permissions_pages', [
+                'action' => 'edit',
+            ]),
+            'returnUrl' => (string)$this->uriBuilder->buildUriFromRoute('permissions_pages', [
+                'id' => $this->id,
+                'depth' => $this->depth,
+                'action' => 'index',
+            ]),
+        ]);
 
         // Get ACL configuration
         $beAclConfig = $this->getExtConf();
@@ -109,8 +100,8 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
         $disableOldPermissionSystem = $beAclConfig['disableOldPermissionSystem'] ? 1 : 0;
         $enableFilterSelector = $beAclConfig['enableFilterSelector'] ? 1 : 0;
 
-        $this->view->assign('disableOldPermissionSystem', $disableOldPermissionSystem);
-        $this->view->assign('enableFilterSelector', $enableFilterSelector);
+        $view->assign('disableOldPermissionSystem', $disableOldPermissionSystem);
+        $view->assign('enableFilterSelector', $enableFilterSelector);
 
         $GLOBALS['LANG']->includeLLFile('EXT:be_acl/Resources/Private/Languages/locallang_perm.xlf');
 
@@ -128,10 +119,10 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
         else {
             $usersSelected = $userAcls;
         }
-        $this->view->assign('userSelectedAcls', $usersSelected);
+        $view->assign('userSelectedAcls', $usersSelected);
 
         // Options for user filter
-        $this->view->assign('userFilterOptions', [
+        $view->assign('userFilterOptions', [
             'options' => $userAcls,
             'title' => $GLOBALS['LANG']->getLL('aclUsers'),
             'id' => 'userAclFilter'
@@ -151,10 +142,10 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
         else {
             $groupsSelected = $groupAcls;
         }
-        $this->view->assign('groupSelectedAcls', $groupsSelected);
+        $view->assign('groupSelectedAcls', $groupsSelected);
 
         // Options for group filter
-        $this->view->assign('groupFilterOptions', [
+        $view->assign('groupFilterOptions', [
             'options' => $groupAcls,
             'title' => $GLOBALS['LANG']->getLL('aclGroups'),
             'id' => 'groupAclFilter'
@@ -164,24 +155,55 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
          *  ACL Tree
          */
         $this->buildACLtree(array_keys($userAcls), array_keys($groupAcls));
-        $this->view->assign('aclList', $this->aclList);
+        $view->assign('aclList', $this->aclList);
+
+        return $view->renderResponse('Permission/Index');
     }
 
-    /**
-     * Edit action
-     *
-     * @return void
-     */
-    public function editAction()
+    public function editAction(ModuleTemplate $view, ServerRequestInterface $request): ResponseInterface
     {
-        parent::editAction();
+        $lang = $this->getLanguageService();
+        $selectNone = $lang->sL('LLL:EXT:beuser/Resources/Private/Language/locallang_mod_permission.xlf:selectNone');
+        $selectUnchanged = $lang->sL('LLL:EXT:beuser/Resources/Private/Language/locallang_mod_permission.xlf:selectUnchanged');
+
+        // Owner selector
+        $beUserDataArray = [0 => $selectNone];
+        foreach (BackendUtility::getUserNames() as $uid => $row) {
+            $beUserDataArray[$uid] = $row['username'] ?? '';
+        }
+        $beUserDataArray[-1] = $selectUnchanged;
+
+        // Group selector
+        $beGroupDataArray = [0 => $selectNone];
+        foreach (BackendUtility::getGroupNames() as $uid => $row) {
+            $beGroupDataArray[$uid] = $row['title'] ?? '';
+        }
+        $beGroupDataArray[-1] = $selectUnchanged;
+
+        $view->assignMultiple([
+            'id' => $this->id,
+            'depth' => $this->depth,
+            'currentBeUser' => $this->pageInfo['perms_userid'] ?? 0,
+            'beUserData' => $beUserDataArray,
+            'currentBeGroup' => $this->pageInfo['perms_groupid'] ?? 0,
+            'beGroupData' => $beGroupDataArray,
+            'pageInfo' => $this->pageInfo,
+            'returnUrl' => $this->returnUrl,
+            'recursiveSelectOptions' => $this->getRecursiveSelectOptions(),
+            'formAction' => (string)$this->uriBuilder->buildUriFromRoute('permissions_pages', [
+                'action' => 'update',
+                'id' => $this->id,
+                'depth' => $this->depth,
+                'returnUrl' => $this->returnUrl,
+            ]),
+        ]);
 
         // Get ACL configuration
         $beAclConfig = $this->getExtConf();
 
         $disableOldPermissionSystem = $beAclConfig['disableOldPermissionSystem'] ? 1 : 0;
 
-        $this->view->assign('disableOldPermissionSystem', $disableOldPermissionSystem);
+        $view->assign('disableOldPermissionSystem', $disableOldPermissionSystem);
 
         $GLOBALS['LANG']->includeLLFile('EXT:be_acl/Resources/Private/Languages/locallang_perm.xlf');
 
@@ -193,9 +215,9 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
             ->where(
                 $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter( $this->id, \PDO::PARAM_INT ) )
             )
-            ->execute();
+            ->executeQuery();
         $pageAcls = array();
-        while ($result = $statement->fetch()) {
+        while ($result = $statement->fetchAssociative()) {
             $pageAcls[] = $result;
         }
 
@@ -204,53 +226,40 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
             $option = new \stdClass();
             $option->key = $type;
             $option->value = LocalizationUtility::translate('LLL:EXT:be_acl/Resources/Private/Languages/locallang_perm.xlf:acl' . $label,
-                'be_acl');
+                'BeAcl');
             $userGroupSelectorOptions[] = $option;
         }
-        $this->view->assign('userGroupSelectorOptions', $userGroupSelectorOptions);
-        $this->view->assign('pageAcls', $pageAcls);
+        $view->assign('userGroupSelectorOptions', $userGroupSelectorOptions);
+        $view->assign('pageAcls', $pageAcls);
+
+        return $view->renderResponse('Permission/Edit');
     }
 
-    /**
-     * Update action
-     *
-     * @param array $data
-     * @param array $mirror
-     * @return void
-     */
-    protected function updateAction(array $data, array $mirror)
+    protected function updateAction(ServerRequestInterface $request): ResponseInterface
     {
+        $data = (array)($request->getParsedBody()['data'] ?? []);
+        $mirror = (array)($request->getParsedBody()['mirror'] ?? []);
         // Process data map
-        $tce = GeneralUtility::makeInstance('TYPO3\\CMS\\Core\\DataHandling\\DataHandler');
-        $tce->stripslashes_values = 0;
-        $tce->start($data, array());
+        /** @var DataHandler $tce */
+        $tce = GeneralUtility::makeInstance(DataHandler::class);
+        $tce->start($data, []);
         $tce->process_datamap();
 
-        parent::updateAction($data, $mirror);
-    }
+        parent::updateAction($request);
 
-    /*****************************
-     *
-     * Helper functions
-     *
-     *****************************/
-
-    protected function getCurrentAction()
-    {
-        if (is_null($this->currentAction)) {
-            $this->currentAction = $this->request->getControllerActionName();
-        }
-        return $this->currentAction;
+        return $this->responseFactory->createResponse(303)
+            ->withHeader('location', $this->returnUrl);
     }
 
     /**
      *
-     * @global array $BE_USER
      * @param int $type
      * @param array $conf
      * @return array
+     * @throws Exception
+     * @global array $BE_USER
      */
-    protected function aclObjects($type, $conf)
+    protected function aclObjects($type, $conf): array
     {
         global $BE_USER;
         $aclObjects = [];
@@ -264,9 +273,9 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
             ->where(
                 $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter( $type, \PDO::PARAM_INT ) )
             )
-            ->execute();
+            ->executeQuery();
         // Process results
-        while ($result = $statement->fetch()) {
+        while ($result = $statement->fetchAssociative()) {
             $aclObjects[$result['object_id']] = $result;
         }
         // Check results
@@ -279,14 +288,15 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
             // get current selection from UC, merge data, write it back to UC
             $currentSelection = is_array($BE_USER->uc['moduleData']['txbeacl_aclSelector'][$type]) ? $BE_USER->uc['moduleData']['txbeacl_aclSelector'][$type] : array();
 
-            $currentSelectionOverride_raw = GeneralUtility::_GP('tx_beacl_objsel');
-            $currentSelectionOverride = array();
-            if (is_array($currentSelectionOverride_raw[$type])) {
+            $currentSelectionOverride_raw = $GLOBALS['TYPO3_REQUEST']->getParsedBody()['tx_beacl_objsel'] ?? $GLOBALS['TYPO3_REQUEST']->getQueryParams()['tx_beacl_objsel'] ?? null;
+            $currentSelectionOverride = [];
+            if (isset($currentSelectionOverride_raw[$type])
+                && is_array($currentSelectionOverride_raw[$type])) {
                 foreach ($currentSelectionOverride_raw[$type] as $tmp) {
                     $currentSelectionOverride[$tmp] = $tmp;
                 }
             }
-            if ($currentSelectionOverride) {
+            if ($currentSelectionOverride || $GLOBALS['TYPO3_REQUEST']->getMethod() === 'POST') {
                 $currentSelection = $currentSelectionOverride;
             }
 
@@ -313,8 +323,9 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
      *
      * @param array $users - user ID list
      * @param array $groups - group ID list
+     * @throws Exception
      */
-    protected function buildACLtree($users, $groups)
+    protected function buildACLtree($users, $groups): void
     {
         $startPerms = [
             0 => [],
@@ -335,8 +346,8 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
                     $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter( $values['uid'], \PDO::PARAM_INT ) ),
                     $queryBuilder->expr()->eq('recursive', $queryBuilder->createNamedParameter( 1, \PDO::PARAM_INT ) )
                 )
-                ->execute();
-            while ($result = $statement->fetch()) {
+                ->executeQuery();
+            while ($result = $statement->fetchAssociative()) {
                 // User type ACLs
                 if ($result['type'] == 0
                     && in_array($result['object_id'], $users)
@@ -367,7 +378,7 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
         $this->traversePageTree_acl($startPerms, $currentPage['uid']);
     }
 
-    protected function getDefaultAclMetaData()
+    protected function getDefaultAclMetaData(): array
     {
         return array_fill_keys($this->aclTypes, [
             'acls' => 0,
@@ -379,7 +390,7 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
      * Adds count meta data to the page ACL list
      * @param array $pageData
      */
-    protected function addAclMetaData(&$pageData)
+    protected function addAclMetaData(&$pageData): void
     {
         if (!array_key_exists('meta', $pageData)) {
             $pageData['meta'] = $this->getDefaultAclMetaData();
@@ -395,8 +406,9 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
      * the parent ACLs.
      * @param array $parentACLs
      * @param int $pageId
+     * @throws Exception
      */
-    protected function traversePageTree_acl($parentACLs, $pageId)
+    protected function traversePageTree_acl($parentACLs, $pageId): void
     {
         // Fetch ACLs aasigned to given page
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_beacl_acl');
@@ -406,14 +418,14 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
             ->where(
                 $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter( $pageId, \PDO::PARAM_INT ) )
             )
-            ->execute();
+            ->executeQuery();
 
         $hasNoRecursive = array();
         $this->aclList[$pageId] = $parentACLs;
 
         $this->addAclMetaData($this->aclList[$pageId]);
 
-        while ($result = $statement->fetch()) {
+        while ($result = $statement->fetchAssociative()) {
             $aclData = array(
                 'uid' => $result['uid'],
                 'permissions' => $result['permissions'],
@@ -432,7 +444,8 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
                 $parentACLs[$result['type']][$result['object_id']] = $aclData;
                 // If there also is a non-recursive ACL for this object_id, that takes precedence
                 // for this page. Otherwise, add it to the ACL list.
-                if (is_array($hasNoRecursive[$pageId][$result['type']][$result['object_id']])) {
+                if (isset($hasNoRecursive[$pageId][$result['type']][$result['object_id']])
+                    && is_array($hasNoRecursive[$pageId][$result['type']][$result['object_id']])) {
                     $this->aclList[$pageId][$result['type']][$result['object_id']] = $hasNoRecursive[$pageId][$result['type']][$result['object_id']];
                 } else {
                     $this->aclList[$pageId][$result['type']][$result['object_id']] = $aclData;
@@ -451,19 +464,93 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
             ->where(
                 $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter( $pageId, \PDO::PARAM_INT ) )
             )
-            ->execute();
-        while ($result = $statement->fetch()) {
+            ->executeQuery();
+        while ($result = $statement->fetchAssociative()) {
             $this->traversePageTree_acl($parentACLs, $result['uid']);
         }
     }
 
+    public function handleAjaxRequest(ServerRequestInterface $request): ResponseInterface
+    {
+        $parsedBody = $request->getParsedBody();
+        $action = $parsedBody['action'] ?? null;
+
+        if ($action === 'delete_acl') {
+            $response = $this->deleteAcl($request);
+        } else {
+            $response = parent::handleAjaxRequest($request);
+        }
+
+        return $response;
+    }
+
+    protected function deleteAcl(ServerRequestInterface $request): ResponseInterface
+    {
+        $GLOBALS['LANG']->includeLLFile('EXT:be_acl/Resources/Private/Languages/locallang_perm.xlf');
+        $GLOBALS['LANG']->getLL('aclUsers');
+
+        $postData = $request->getParsedBody();
+        $aclUid = !empty($postData['acl']) ? $postData['acl'] : null;
+
+        if (!MathUtility::canBeInterpretedAsInteger($aclUid)) {
+            return $this->errorResponse($GLOBALS['LANG']->getLL('noAclId'), 400);
+        }
+        $aclUid = (int)$aclUid;
+        // Prepare command map
+        $cmdMap = [
+            $this->table => [
+                $aclUid => ['delete' => 1]
+            ]
+        ];
+
+        try {
+            // Process command map
+            /** @var DataHandler $tce */
+            $tce = GeneralUtility::makeInstance(DataHandler::class);
+            $tce->start([], $cmdMap);
+            $this->checkModifyAccess($this->table, $aclUid, $tce);
+            $tce->process_cmdmap();
+        } catch (\Exception $ex) {
+            return $this->errorResponse($ex->getMessage(), 403);
+        }
+
+        $body = [
+            'title' => $GLOBALS['LANG']->getLL('aclSuccess'),
+            'message' => $GLOBALS['LANG']->getLL('aclDeleted')
+        ];
+
+        return $this->htmlResponse(json_encode($body));
+    }
+
+    protected function checkModifyAccess($table, $id, DataHandler $tcemainObj): void
+    {
+        // Check modify access
+        $modifyAccessList = $tcemainObj->checkModifyAccessList($table);
+        // Check basic permissions and circumstances:
+        if (!isset($GLOBALS['TCA'][$table]) || $tcemainObj->tableReadOnly($table) || !is_array($tcemainObj->cmdmap[$table]) || !$modifyAccessList) {
+            throw new RuntimeException($GLOBALS['LANG']->getLL('noPermissionToModifyAcl'));
+        }
+
+        // Check table / id
+        if (!$GLOBALS['TCA'][$table] || !$id) {
+            throw new RuntimeException(sprintf($GLOBALS['LANG']->getLL('noEditAccessToAclRecord'), $id, $table));
+        }
+
+        // Check edit access
+        $hasEditAccess = $tcemainObj->BE_USER->recordEditAccessInternals($table, $id, false, false, true);
+        if (!$hasEditAccess) {
+            throw new RuntimeException(sprintf($GLOBALS['LANG']->getLL('noEditAccessToAclRecord'), $id, $table));
+        }
+    }
 
     protected function getExtConf()
     {
-		if ( \TYPO3\CMS\Core\Utility\VersionNumberUtility::convertVersionNumberToInteger(TYPO3_version) >= 9000000)
-	       	return GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('be_acl');
-	    else
-	       	return unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['be_acl']);
+        return GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('be_acl');
 	}
+
+    protected function errorResponse($reason, $status = 500): ResponseInterface
+    {
+        return $this->htmlResponse($reason, $status);
+    }
 }
 

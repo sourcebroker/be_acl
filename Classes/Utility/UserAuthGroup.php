@@ -50,11 +50,6 @@ class UserAuthGroup
     protected $aclPageList;
 
     /**
-     * @var \TYPO3\CMS\Core\Database\DatabaseConnection
-     */
-    protected $db;
-
-    /**
      * Returns a combined binary representation of the current users permissions for the page-record, $row.
      * The perms for user, group and everybody is OR'ed together (provided that the page-owner is the user and for the
      * groups that the user is a member of the group If the user is admin, 31 is returned (full permissions for all
@@ -95,8 +90,8 @@ class UserAuthGroup
                 ->from('tx_beacl_acl')
                 ->where( ...$whereExpressions )
                 ->orderBy('recursive')
-                ->execute();
-            while ($result = $statement->fetch()) {
+                ->executeQuery();
+            while ($result = $statement->fetchAssociative()) {
                 if ($result['type'] == 0
                     && ($that->user['uid'] == $result['object_id'])
                     && $takeUserIntoAccount
@@ -162,8 +157,8 @@ class UserAuthGroup
         $this->getPagePermsClause_single(0, $that->user['uid'], $perms);
 
         // get allowed IDs for every single group
-        if ($that->groupList) {
-            $groupList = explode(',', $that->groupList);
+        if ($that->userGroupsUID) {
+            $groupList = $that->userGroupsUID;
             foreach ($groupList as $singleGroup) {
                 $this->getPagePermsClause_single(1, $singleGroup, $perms);
             }
@@ -206,23 +201,25 @@ class UserAuthGroup
         // reset aclDisallowed
         $this->aclDisallowed = array();
 
+        $aclAllowed = array();
+
         // 1. fetch all ACLs relevant for the current user/group
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_beacl_acl');
         $statement = $queryBuilder
             ->select('pid', 'recursive')
             ->from('tx_beacl_acl')
             ->where(
-                $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter( $type, \PDO::PARAM_INT ) ),
-                $queryBuilder->expr()->eq('object_id', $queryBuilder->createNamedParameter( $object_id, \PDO::PARAM_INT ) ),
+                $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter($type, \PDO::PARAM_INT)),
+                $queryBuilder->expr()->eq('object_id', $queryBuilder->createNamedParameter($object_id, \PDO::PARAM_INT)),
                 $queryBuilder->expr()->comparison(
-                    $queryBuilder->expr()->bitAnd( 'permissions' , intval( $perms ) ),
+                    $queryBuilder->expr()->bitAnd('permissions', (int)$perms),
                     ExpressionBuilder::EQ,
-                    intval( $perms )
+                    (int)$perms
                 )
             )
-            ->execute();
+            ->executeQuery();
 //        $aclAllowed[] = $statement->fetchAll();
-        while ($result = $statement->fetch()) {
+        while ($result = $statement->fetchAssociative()) {
             $aclAllowed[] = $result;
         }
 
@@ -234,16 +231,16 @@ class UserAuthGroup
                 ->select('pid', 'recursive')
                 ->from('tx_beacl_acl')
                 ->where(
-                    $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter( $type, \PDO::PARAM_INT ) ),
-                    $queryBuilder->expr()->eq('object_id', $queryBuilder->createNamedParameter( $object_id, \PDO::PARAM_INT ) ),
+                    $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter($type, \PDO::PARAM_INT)),
+                    $queryBuilder->expr()->eq('object_id', $queryBuilder->createNamedParameter($object_id, \PDO::PARAM_INT)),
                     $queryBuilder->expr()->comparison(
-                        $queryBuilder->expr()->bitAnd( 'permissions' , intval( $perms ) ),
+                        $queryBuilder->expr()->bitAnd('permissions', (int)$perms),
                         ExpressionBuilder::EQ,
                         0
                     )
                 )
-                ->execute();
-            while ($result = $statement->fetch() ) {
+                ->executeQuery();
+            while ($result = $statement->fetchAssociative()) {
                 // only one ACL per group/user per page is allowed, that's why this line imposes no problem. It rather increases speed.
                 $this->aclDisallowed[$result['pid']] = $result['recursive'];
             }
@@ -294,18 +291,15 @@ class UserAuthGroup
             ->where(
                 $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter( $pid, \PDO::PARAM_INT ) )
             )
-            ->execute();
-        while ($result = $statement->fetch()) {
+            ->executeQuery();
+        while ($result = $statement->fetchAssociative()) {
             $this->aclTraversePageTree($result['uid']);
         }
     }
 
     protected function getDisableOldPermissionSystem()
     {
-			if ( \TYPO3\CMS\Core\Utility\VersionNumberUtility::convertVersionNumberToInteger(TYPO3_version) >= 9000000)
-	        	return (bool)GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('be_acl', 'disableOldPermissionSystem');
-	        else
-	        	return (bool)unserialize($GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['be_acl'])['disableOldPermissionSystem'];
+        return (bool)GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('be_acl', 'disableOldPermissionSystem');
 	}
 
 }
