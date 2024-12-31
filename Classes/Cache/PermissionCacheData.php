@@ -29,6 +29,12 @@ namespace JBartels\BeAcl\Cache;
  */
 class PermissionCacheData
 {
+    /**
+     * Array containing the permission clause cache.
+     *
+     * @var array
+     */
+    protected $permissionClauseCache = [];
 
     /**
      * Array containing the results of the different permission clauses.
