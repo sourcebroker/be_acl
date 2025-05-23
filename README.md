@@ -1,6 +1,8 @@
 # INFORMATION:
 
-TYPO3 12 version of be_acl extension: https://github.com/p2media/typo3-ext--be-acl
+TYPO3 13 version of be_acl extension: https://github.com/p2media/typo3-ext--be-acl.
+
+TYPO3 12 is supported by version 3.x.
 
 
 ## Installation

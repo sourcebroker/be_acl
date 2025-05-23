@@ -26,6 +26,10 @@ call_user_func(function () {
 		'className' => \JBartels\BeAcl\Controller\PermissionController::class,
 	];
 
+    $GLOBALS['TYPO3_CONF_VARS']['SYS']['Objects'][\TYPO3\CMS\Core\DataHandling\DataHandler::class] = [
+        'className' => \JBartels\BeAcl\Xclass\TYPO3\CMS\Core\DataHandling\DataHandler::class,
+    ];
+
 	$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['processDatamapClass'][] =
 		\JBartels\BeAcl\Hook\DataHandlerHook::class
 	;

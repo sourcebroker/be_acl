@@ -25,7 +25,9 @@ namespace JBartels\BeAcl\Utility;
  ***************************************************************/
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
@@ -78,11 +80,11 @@ class UserAuthGroup
         foreach ($rootLine as $values) {
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_beacl_acl');
             $whereExpressions = [
-                $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($values['uid'], \PDO::PARAM_INT ) )
+                $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($values['uid'], Connection::PARAM_INT ) ),
             ];
             if ($i != 0) {
                 $whereExpressions[] =
-                    $queryBuilder->expr()->eq('recursive', $queryBuilder->createNamedParameter( 1, \PDO::PARAM_INT ) )
+                    $queryBuilder->expr()->eq('recursive', $queryBuilder->createNamedParameter( 1, Connection::PARAM_INT ) )
                 ;
             }
             $statement = $queryBuilder
@@ -100,7 +102,7 @@ class UserAuthGroup
                     $out |= $result['permissions'];
                     $takeUserIntoAccount = 0;
                 } elseif ($result['type'] == 1
-                    && $that->isMemberOfGroup($result['object_id'])
+                    && $this->isMemberOfGroup($that, (int)$result['object_id'])
                     && !in_array($result['object_id'], $groupIdsAlreadyUsed)
                 ) {
                     $out |= $result['permissions'];
@@ -111,6 +113,15 @@ class UserAuthGroup
         }
 
         return $out;
+    }
+
+    // reflects logic of BackendUserAuthentication::isMemberOfGroup since it became protected method
+    private function isMemberOfGroup(BackendUserAuthentication $backendUserAuthentication, $groupId): bool
+    {
+        if (!empty($backendUserAuthentication->userGroupsUID) && $groupId) {
+            return in_array($groupId, $backendUserAuthentication->userGroupsUID, true);
+        }
+        return false;
     }
 
     /**
@@ -209,8 +220,8 @@ class UserAuthGroup
             ->select('pid', 'recursive')
             ->from('tx_beacl_acl')
             ->where(
-                $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter($type, \PDO::PARAM_INT)),
-                $queryBuilder->expr()->eq('object_id', $queryBuilder->createNamedParameter($object_id, \PDO::PARAM_INT)),
+                $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter($type, Connection::PARAM_INT)),
+                $queryBuilder->expr()->eq('object_id', $queryBuilder->createNamedParameter($object_id, Connection::PARAM_INT)),
                 $queryBuilder->expr()->comparison(
                     $queryBuilder->expr()->bitAnd('permissions', (int)$perms),
                     ExpressionBuilder::EQ,
@@ -231,8 +242,8 @@ class UserAuthGroup
                 ->select('pid', 'recursive')
                 ->from('tx_beacl_acl')
                 ->where(
-                    $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter($type, \PDO::PARAM_INT)),
-                    $queryBuilder->expr()->eq('object_id', $queryBuilder->createNamedParameter($object_id, \PDO::PARAM_INT)),
+                    $queryBuilder->expr()->eq('type', $queryBuilder->createNamedParameter($type, Connection::PARAM_INT)),
+                    $queryBuilder->expr()->eq('object_id', $queryBuilder->createNamedParameter($object_id, Connection::PARAM_INT)),
                     $queryBuilder->expr()->comparison(
                         $queryBuilder->expr()->bitAnd('permissions', (int)$perms),
                         ExpressionBuilder::EQ,
@@ -289,7 +300,7 @@ class UserAuthGroup
             ->select('uid')
             ->from('pages')
             ->where(
-                $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter( $pid, \PDO::PARAM_INT ) )
+                $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter( $pid, Connection::PARAM_INT ) )
             )
             ->executeQuery();
         while ($result = $statement->fetchAssociative()) {

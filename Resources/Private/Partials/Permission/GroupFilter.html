@@ -15,5 +15,11 @@
 		</f:if>
 	</f:for>
 </select><br />
-<input type="button" value="<f:translate key='LLL:EXT:be_acl/Resources/Private/Languages/locallang_perm.xlf:aclObjSelUpdate' />" onclick="document.aclfilterform.action=document.location; document.aclfilterform.submit()" />
+<input id="acl-submit-button-1748022412705" type="button" value="<f:translate key='LLL:EXT:be_acl/Resources/Private/Languages/locallang_perm.xlf:aclObjSelUpdate' />" />
+
+	<f:be.pageRenderer
+		includeJavaScriptModules="{
+            0: '@p2media/be-acl/acl-permissions-extended.js'
+        }"
+	/>
 </div>

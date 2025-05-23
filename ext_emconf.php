@@ -4,7 +4,6 @@ $EM_CONF['be_acl'] = [
 	'title' => 'Backend ACLs',
 	'description' => 'Backend Access Control Lists',
 	'category' => 'be',
-	'version' => '2.0.2-dev',
 	'state' => 'stable',
 	'clearcacheonload' => false,
 	'author' => 'Sebastian Kurfuerst, Jan Bartels, Moritz Ngo',
@@ -12,7 +11,7 @@ $EM_CONF['be_acl'] = [
 	'author_company' => '',
 	'constraints' => [
 		'depends' => [
-			'typo3' => '12.4.0-12.4.99',
+			'typo3' => '13.4.0-13.4.99',
 		],
 		'conflicts' => [
 		],
