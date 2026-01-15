@@ -15,9 +15,9 @@ use TYPO3\CMS\Core\Type\Bitmask\Permission;
  */
 class DataHandler extends BaseDataHandler
 {
-    public function hasPagePermission(int $perms, array $page): bool
+    public function hasPagePermission(int $perms, array $page, bool $useDeleteClause = true): bool
     {
-        $baseResult = parent::hasPagePermission($perms, $page);
+        $baseResult = parent::hasPagePermission($perms, $page, $useDeleteClause);
 
         if ($baseResult) {
             return true;
