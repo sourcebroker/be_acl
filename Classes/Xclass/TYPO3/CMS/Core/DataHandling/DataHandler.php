@@ -6,21 +6,26 @@ namespace JBartels\BeAcl\Xclass\TYPO3\CMS\Core\DataHandling;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\DataHandling\DataHandler as BaseDataHandler;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
+use TYPO3\CMS\Core\Type\VirtualRecord;
 
 /**
  * This is a workaround for the issue occurring in TYPO3 v13.
  * Because of permission changes inside TYPO3\CMS\Core\DataHandling\DataHandler it is not possible to edit records.
- * There is also no way to hook into \TYPO3\CMS\Core\DataHandling\DataHandler::hasPagePermission and that is why
+ * There is also no way to hook into \TYPO3\CMS\Core\DataHandling\DataHandler::hasPageContextPermission and that is why
  * this xclass was required.
  */
 class DataHandler extends BaseDataHandler
 {
-    public function hasPagePermission(int $perms, array $page, bool $useDeleteClause = true): bool
+    public function hasPageContextPermission(string $table, int $perms, array|VirtualRecord $page, bool $useDeleteClause = true): bool
     {
-        $baseResult = parent::hasPagePermission($perms, $page, $useDeleteClause);
+        $baseResult = parent::hasPageContextPermission($table, $perms, $page, $useDeleteClause);
 
         if ($baseResult) {
             return true;
+        }
+
+        if ($page instanceof VirtualRecord) {
+            return false;
         }
 
         if (!$GLOBALS['BE_USER'] instanceof BackendUserAuthentication) {
