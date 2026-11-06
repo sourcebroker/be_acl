@@ -52,6 +52,7 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
     private const ALLOWED_ACTIONS = ['index', 'edit', 'update'];
     private const DEPTH_LEVELS = [1, 2, 3, 4, 10];
     private const RECURSIVE_LEVELS = 10;
+    private const LANGUAGE_FILE = 'LLL:EXT:be_acl/Resources/Private/Languages/locallang_perm.xlf:';
 
     protected $aclList = [];
 
@@ -104,7 +105,6 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
         $view->assign('disableOldPermissionSystem', $disableOldPermissionSystem);
         $view->assign('enableFilterSelector', $enableFilterSelector);
 
-        $GLOBALS['LANG']->includeLLFile('EXT:be_acl/Resources/Private/Languages/locallang_perm.xlf');
 
         /*
          *  User ACLs
@@ -125,7 +125,7 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
         // Options for user filter
         $view->assign('userFilterOptions', [
             'options' => $userAcls,
-            'title' => $GLOBALS['LANG']->sL('aclUsers'),
+            'title' => $this->translate('aclUsers'),
             'id' => 'userAclFilter'
         ]);
 
@@ -148,7 +148,7 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
         // Options for group filter
         $view->assign('groupFilterOptions', [
             'options' => $groupAcls,
-            'title' => $GLOBALS['LANG']->sL('aclGroups'),
+            'title' => $this->translate('aclGroups'),
             'id' => 'groupAclFilter'
         ]);
 
@@ -161,7 +161,7 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
         return $view->renderResponse('Permission/Index');
     }
 
-    public function editAction(ModuleTemplate $view, ServerRequestInterface $request): ResponseInterface
+    public function editAction(ModuleTemplate $view): ResponseInterface
     {
         $lang = $this->getLanguageService();
         $selectNone = $lang->sL('LLL:EXT:beuser/Resources/Private/Language/locallang_mod_permission.xlf:selectNone');
@@ -206,7 +206,6 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
 
         $view->assign('disableOldPermissionSystem', $disableOldPermissionSystem);
 
-        $GLOBALS['LANG']->includeLLFile('EXT:be_acl/Resources/Private/Languages/locallang_perm.xlf');
 
         // ACL CODE
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tx_beacl_acl');
@@ -487,14 +486,12 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
 
     protected function deleteAcl(ServerRequestInterface $request): ResponseInterface
     {
-        $GLOBALS['LANG']->includeLLFile('EXT:be_acl/Resources/Private/Languages/locallang_perm.xlf');
-        $GLOBALS['LANG']->sL('aclUsers');
 
         $postData = $request->getParsedBody();
         $aclUid = !empty($postData['acl']) ? $postData['acl'] : null;
 
         if (!MathUtility::canBeInterpretedAsInteger($aclUid)) {
-            return $this->errorResponse($GLOBALS['LANG']->sL('noAclId'), 400);
+            return $this->errorResponse($this->translate('noAclId'), 400);
         }
         $aclUid = (int)$aclUid;
         // Prepare command map
@@ -518,11 +515,16 @@ class PermissionController extends \TYPO3\CMS\Beuser\Controller\PermissionContro
         }
 
         $body = [
-            'title' => $GLOBALS['LANG']->sL('aclSuccess'),
-            'message' => $GLOBALS['LANG']->sL('aclDeleted')
+            'title' => $this->translate('aclSuccess'),
+            'message' => $this->translate('aclDeleted')
         ];
 
         return $this->htmlResponse(json_encode($body));
+    }
+
+    protected function translate(string $key): string
+    {
+        return $this->getLanguageService()->sL(self::LANGUAGE_FILE . $key);
     }
 
     protected function getExtConf()

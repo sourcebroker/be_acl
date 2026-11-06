@@ -11,10 +11,6 @@ call_user_func(function () {
 
 	$isRedisEnabled = extension_loaded('redis') && $extensionConfiguration['enableRedis'];
 
-	\TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addUserTSConfig('
-		options.saveDocNew.tx_beacl_acl=1
-	');
-
 	$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_userauthgroup.php']['calcPerms'][] =
 		\JBartels\BeAcl\Utility\UserAuthGroup::class .'->calcPerms'
 	;

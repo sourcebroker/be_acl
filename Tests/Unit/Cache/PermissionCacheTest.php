@@ -1,133 +1,107 @@
 <?php
+
+declare(strict_types=1);
+
 namespace JBartels\BeAcl\Tests\Unit\Cache;
 
-use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
+use JBartels\BeAcl\Cache\PermissionCache;
+use JBartels\BeAcl\Cache\TimestampUtility;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\MockObject\MockObject;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Cache\Backend\TransientMemoryBackend;
 use TYPO3\CMS\Core\Cache\Frontend\VariableFrontend;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Tests for the permission cache.
  */
-class PermissionCacheTest extends UnitTestCase {
+final class PermissionCacheTest extends UnitTestCase
+{
+    private const PERMISSIONS_CLAUSE_KEY = 'testCachekey';
+    private const PERMISSIONS_CLAUSE_VALUE = 'testCacheValue';
 
-	/**
-	 * @var \TYPO3\CMS\Core\Authentication\BackendUserAuthentication
-	 */
-	protected $backendUser;
+    // The cache frontend and backend create the LogManager singleton.
+    protected bool $resetSingletonInstances = true;
 
-	/**
-	 * @var \TYPO3\CMS\Core\Cache\Frontend\FrontendInterface|\PHPUnit_Framework_MockObject_MockObject
-	 */
-	protected $cacheMock;
+    protected PermissionCache $permissionCache;
 
-	/**
-	 * @var \JBartels\BeAcl\Cache\PermissionCache|\PHPUnit_Framework_MockObject_MockObject
-	 */
-	protected $permissionCache;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $backendUser = $this->createStub(BackendUserAuthentication::class);
+        $backendUser->user = ['uid' => 1, 'usergroup' => '1', 'workspace_id' => 0];
 
-	/**
-	 * The key used for the test cache entry
-	 *
-	 * @var string
-	 */
-	protected $permissionsClauseCacheKey = 'testCachekey';
+        // The real classes come from the cache manager; the tests set their own caches and utilities.
+        $this->permissionCache = new class () extends PermissionCache {
+            protected function initializeRequiredClasses() {}
+        };
+        $this->permissionCache->setBackendUser($backendUser);
+        $this->permissionCache->setPermissionCache(
+            new VariableFrontend('tx_be_acl_permissions', new TransientMemoryBackend())
+        );
+    }
 
-	/**
-	 * The value used for the test cache entry
-	 *
-	 * @var string
-	 */
-	protected $permissionsClauseCacheValue = 'testCacheValue';
+    #[Test]
+    public function flushingCacheInvalidatesPreviouslySetFirstLevelCache(): void
+    {
+        $this->permissionCache->setTimestampUtility($this->timestampUtilityExpectingFlush());
 
-	/**
-	 * Initializes the permission cache
-	 */
-	public function setUp() {
+        $this->permissionCache->setPermissionsClause(self::PERMISSIONS_CLAUSE_KEY, self::PERMISSIONS_CLAUSE_VALUE);
+        $this->permissionCache->flushCache();
 
-		/** @var \TYPO3\CMS\Core\Authentication\BackendUserAuthentication $backendUser */
-		$this->backendUser = GeneralUtility::makeInstance('TYPO3\\CMS\\Core\\Authentication\\BackendUserAuthentication');
-	}
+        self::assertNull($this->permissionCache->getPermissionsClause(self::PERMISSIONS_CLAUSE_KEY));
+    }
 
-	/**
-	 * @test
-	 */
-	public function flushingCacheInvalidatesPreviouslySetFirstLevelCache(): void {
-		$this->initializePermissionCacheMock(array('initializeRequiredClasses'));
+    #[Test]
+    public function flushingCacheInvalidatesPreviouslySetSecondLevelCache(): void
+    {
+        $this->permissionCache->disableFirstLevelCache();
+        $this->permissionCache->setTimestampUtility($this->timestampUtilityExpectingFlush());
 
-		/** @var \JBartels\BeAcl\Cache\TimestampUtility|\PHPUnit_Framework_MockObject_MockObject $timestampUtility */
-		$timestampUtility = $this->getMock('JBartels\\BeAcl\\Cache\\TimestampUtility', array('updateTimestamp', 'permissionTimestampIsValid'));
-		$timestampUtility->expects($this->once())->method('updateTimestamp');
-		$timestampUtility->expects($this->once())->method('permissionTimestampIsValid')->will($this->returnValue(FALSE));
-		$this->permissionCache->setTimestampUtility($timestampUtility);
+        $this->permissionCache->setPermissionsClause(self::PERMISSIONS_CLAUSE_KEY, self::PERMISSIONS_CLAUSE_VALUE);
+        $this->permissionCache->flushCache();
 
-		$this->permissionCache->setPermissionsClause($this->permissionsClauseCacheKey, $this->permissionsClauseCacheValue);
-		$this->permissionCache->flushCache();
-		$cachedValue = $this->permissionCache->getPermissionsClause($this->permissionsClauseCacheKey);
-		$this->assertNull($cachedValue);
-	}
+        self::assertNull($this->permissionCache->getPermissionsClause(self::PERMISSIONS_CLAUSE_KEY));
+    }
 
-	/**
-	 * @test
-	 */
-	public function flushingCacheInvalidatesPreviouslySetSecondLevelCache(): void {
+    #[Test]
+    public function previouslySetCacheValueIsReturnedByFirstLevelCache(): void
+    {
+        $this->permissionCache->setPermissionsClause(self::PERMISSIONS_CLAUSE_KEY, self::PERMISSIONS_CLAUSE_VALUE);
 
-		$this->initializePermissionCacheMock(array('initializeRequiredClasses'));
-		$this->permissionCache->disableFirstLevelCache();
+        self::assertSame(
+            self::PERMISSIONS_CLAUSE_VALUE,
+            $this->permissionCache->getPermissionsClause(self::PERMISSIONS_CLAUSE_KEY)
+        );
+    }
 
-		/** @var \JBartels\BeAcl\Cache\TimestampUtility|\PHPUnit_Framework_MockObject_MockObject $timestampUtility */
-		$timestampUtility = $this->getMock('JBartels\\BeAcl\\Cache\\TimestampUtility', array('updateTimestamp', 'permissionTimestampIsValid'));
-		$timestampUtility->expects($this->once())->method('updateTimestamp');
-		$timestampUtility->expects($this->once())->method('permissionTimestampIsValid')->will($this->returnValue(FALSE));
-		$this->permissionCache->setTimestampUtility($timestampUtility);
+    #[Test]
+    public function previouslySetCacheValueIsReturnedBySecondLevelCache(): void
+    {
+        $timestampUtility = $this->getMockBuilder(TimestampUtility::class)
+            ->onlyMethods(['permissionTimestampIsValid'])
+            ->getMock();
+        $timestampUtility->expects($this->once())->method('permissionTimestampIsValid')->willReturn(true);
+        $this->permissionCache->setTimestampUtility($timestampUtility);
+        $this->permissionCache->disableFirstLevelCache();
 
-		$this->permissionCache->setPermissionsClause($this->permissionsClauseCacheKey, $this->permissionsClauseCacheValue);
-		$this->permissionCache->flushCache();
-		$cachedValue = $this->permissionCache->getPermissionsClause($this->permissionsClauseCacheKey);
-		$this->assertNull($cachedValue);
-	}
+        $this->permissionCache->setPermissionsClause(self::PERMISSIONS_CLAUSE_KEY, self::PERMISSIONS_CLAUSE_VALUE);
 
-	/**
-	 * @test
-	 */
-	public function previouslySetCacheValueIsReturnedByFirstLevelCache(): void {
-		$this->initializePermissionCacheMock(array('initializeRequiredClasses'));
-		$this->permissionCache->setPermissionsClause($this->permissionsClauseCacheKey, $this->permissionsClauseCacheValue);
-		$cachedValue = $this->permissionCache->getPermissionsClause($this->permissionsClauseCacheKey);
-		$this->assertEquals($this->permissionsClauseCacheValue, $cachedValue);
-	}
+        self::assertSame(
+            self::PERMISSIONS_CLAUSE_VALUE,
+            $this->permissionCache->getPermissionsClause(self::PERMISSIONS_CLAUSE_KEY)
+        );
+    }
 
-	/**
-	 * @test
-	 */
-	public function previouslySetCacheValueIsReturnedBySecondLevelCache(): void {
+    private function timestampUtilityExpectingFlush(): TimestampUtility&MockObject
+    {
+        $timestampUtility = $this->getMockBuilder(TimestampUtility::class)
+            ->onlyMethods(['updateTimestamp', 'permissionTimestampIsValid'])
+            ->getMock();
+        $timestampUtility->expects($this->once())->method('updateTimestamp');
+        $timestampUtility->expects($this->once())->method('permissionTimestampIsValid')->willReturn(false);
 
-		$this->initializePermissionCacheMock(array('initializeRequiredClasses'));
-
-		/** @var \JBartels\BeAcl\Cache\TimestampUtility|\PHPUnit_Framework_MockObject_MockObject $timestampUtility */
-		$timestampUtility = $this->getMock('JBartels\\BeAcl\\Cache\\TimestampUtility', array('permissionTimestampIsValid'));
-		$timestampUtility->expects($this->once())->method('permissionTimestampIsValid')->will($this->returnValue(TRUE));
-		$this->permissionCache->setTimestampUtility($timestampUtility);
-
-		$this->permissionCache->disableFirstLevelCache();
-		$this->permissionCache->setPermissionsClause($this->permissionsClauseCacheKey, $this->permissionsClauseCacheValue);
-		$cachedValue = $this->permissionCache->getPermissionsClause($this->permissionsClauseCacheKey);
-		$this->assertEquals($this->permissionsClauseCacheValue, $cachedValue);
-	}
-
-	/**
-	 * @param array $mockedMethods
-	 */
-	protected function initializePermissionCacheMock($mockedMethods) {
-
-		/** @var \JBartels\BeAcl\Cache\PermissionCache $permissionCache */
-		$permissionCache = $this->getMock('JBartels\\BeAcl\\Cache\\PermissionCache', $mockedMethods);
-		$permissionCache->setBackendUser($this->backendUser);
-
-		$cacheBackend = new TransientMemoryBackend('Testing');
-		$cacheFrontend = new VariableFrontend('tx_be_acl_permissions', $cacheBackend);
-
-		$permissionCache->setPermissionCache($cacheFrontend);
-
-		$this->permissionCache = $permissionCache;
-	}
+        return $timestampUtility;
+    }
 }

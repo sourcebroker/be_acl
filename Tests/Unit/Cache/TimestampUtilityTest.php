@@ -1,50 +1,47 @@
 <?php
+
+declare(strict_types=1);
+
 namespace JBartels\BeAcl\Tests\Unit\Cache;
 
+use JBartels\BeAcl\Cache\TimestampUtility;
+use PHPUnit\Framework\Attributes\Test;
+use TYPO3\CMS\Core\Cache\Backend\TransientMemoryBackend;
+use TYPO3\CMS\Core\Cache\Frontend\VariableFrontend;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Unit tests for the timestamp utility.
  */
-class TimestampUtilityTest extends UnitTestCase {
+final class TimestampUtilityTest extends UnitTestCase
+{
+    // The cache frontend and backend create the LogManager singleton.
+    protected bool $resetSingletonInstances = true;
 
-	/**
-	 * @var \JBartels\BeAcl\Cache\TimestampUtility
-	 */
-	protected $timestampUtility;
+    protected TimestampUtility $timestampUtility;
 
-	/**
-	 * Initializes the timestamp utility
-	 */
-	public function setUp() {
-		$this->timestampUtility = $this->getMock('JBartels\\BeAcl\\Cache\\TimestampUtility', array('initializeCache'));
-		$this->initializeTimestampCache();
-	}
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->timestampUtility = new TimestampUtility();
+        $this->timestampUtility->setTimestampCache(
+            new VariableFrontend('tx_be_acl_timestamp', new TransientMemoryBackend())
+        );
+    }
 
-	/**
-	 * @test
-	 */
-	public function newerTimestampThanInCacheIsInvalid(): void {
-		$this->timestampUtility->updateTimestamp();
-		$isValid = $this->timestampUtility->permissionTimestampIsValid(time() + 100);
-		$this->assertTrue($isValid);
-	}
+    #[Test]
+    public function timestampNewerThanTheLastPermissionChangeIsValid(): void
+    {
+        $this->timestampUtility->updateTimestamp();
 
-	/**
-	 * @test
-	 */
-	public function olderTimestampThanInCacheIsInvalid(): void {
-		$this->timestampUtility->updateTimestamp();
-		$isValid = $this->timestampUtility->permissionTimestampIsValid(time() - 100);
-		$this->assertFalse($isValid);
-	}
+        self::assertTrue($this->timestampUtility->permissionTimestampIsValid(time() + 100));
+    }
 
-	/**
-	 * Initializes the cache mock in the timestamp utility.
-	 */
-	protected function initializeTimestampCache() {
-		/** @var \TYPO3\CMS\Core\Cache\Frontend\FrontendInterface $cacheMock */
-		$cacheMock = $this->getMock('TYPO3\\CMS\\Core\\Cache\\Frontend\\FrontendInterface', array(), array(), '', FALSE);
-		$this->timestampUtility->setTimestampCache($cacheMock);
-	}
+    #[Test]
+    public function timestampOlderThanTheLastPermissionChangeIsInvalid(): void
+    {
+        $this->timestampUtility->updateTimestamp();
+
+        self::assertFalse($this->timestampUtility->permissionTimestampIsValid(time() - 100));
+    }
 }
